@@ -6,6 +6,8 @@ This project implements a Generative Adversarial Network (GAN) to generate handw
 
 ![GAN Application Screenshot](applicationCapture.PNG)
 
+![GAN Application gif](application.gif)
+
 The core of this project consists of:
 
 * A **Generator model** trained on the MNIST dataset to create new handwritten digits.
