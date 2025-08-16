@@ -70,6 +70,9 @@ def train_and_save_generator(output_path, logger, num_samples=1000):
     lr = 0.0002
     epochs = 10
     batch_size = 64
+    
+    # Define the target size for the loss calculation
+    image_size_flat = img_shape[0] * img_shape[1] * img_shape[2]
 
     # Create dummy data for a quick training run
     dummy_noise = torch.randn(num_samples, latent_dim)
@@ -87,11 +90,15 @@ def train_and_save_generator(output_path, logger, num_samples=1000):
     for epoch in range(epochs):
         for i, noise in enumerate(dataloader):
             noise = noise[0].to(device)
-            valid = torch.ones(noise.size(0), 1).to(device)
+            # Corrected: Use a flattened target tensor with the correct size
+            valid = torch.ones(noise.size(0), image_size_flat).to(device)
             
             optimizer_g.zero_grad()
             gen_imgs = generator(noise)
-            g_loss = criterion(torch.sigmoid(gen_imgs), valid)
+            
+            # Corrected: Flatten the generator output to match the target size
+            g_loss = criterion(torch.sigmoid(gen_imgs).view(gen_imgs.size(0), -1), valid)
+            
             g_loss.backward()
             optimizer_g.step()
 
