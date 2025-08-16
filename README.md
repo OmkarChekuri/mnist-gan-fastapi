@@ -10,9 +10,11 @@ The core of this project consists of:
 
 * A **Generator model** trained on the MNIST dataset to create new handwritten digits.
 
-* A **FastAPI server** that exposes a `/generate_image` endpoint to serve these new images.
+* A **Classifier model** that predicts the digit and confidence level of the generated image.
 
-* A simple **HTML front-end** that allows users to interact with the model and view the generated digits in real-time.
+* A **FastAPI server** that exposes a `/generate_image` endpoint to serve these new images and their predictions.
+
+* A simple **HTML front-end** that allows users to interact with the model and view the generated digits and their predictions in real-time.
 
 The project is structured to separate the model training pipeline from the web application, making it easy to manage and deploy.
 
@@ -25,7 +27,8 @@ The project is structured to separate the model training pipeline from the web a
 │   └── templates/           # HTML templates for the UI
 │       └── index.html
 ├── model/                   # Trained model files
-│   └── generator_model.pth  # The saved Generator model
+│   ├── generator_model.pth  # The saved Generator model
+│   └── classifier_model.pth # The saved Classifier model
 ├── logs/                    # Training logs and other run artifacts
 ├── tests/                   # Application test cases
 │   └── test_app.py
@@ -35,7 +38,7 @@ The project is structured to separate the model training pipeline from the web a
 ├── requirements.txt         # Python dependencies
 ├── README.md                # Project documentation
 └── prepare_model.py         # Script to train and save the GAN model
-
+└── prepare_classifier.py    # Script to train and save the Classifier model
 ```
 
 ## Setup and Installation
@@ -48,34 +51,35 @@ The project is structured to separate the model training pipeline from the web a
 
 ### Local Environment Setup
 
-1.  **Clone the repository and navigate into it:**
+1. **Clone the repository and navigate into it:**
 
-    ```
-    git clone [https://github.com/your_username/mnist-gan-fastapi.git](https://github.com/your_username/mnist-gan-fastapi.git)
-    cd mnist-gan-fastapi
+   ```
+   git clone [https://github.com/your_username/mnist-gan-fastapi.git](https://github.com/your_username/mnist-gan-fastapi.git)
+   cd mnist-gan-fastapi
+   
+   ```
 
-    ```
+2. **Activate your virtual environment:**
 
-2.  **Activate your virtual environment:**
+   ```
+   source venv/bin/activate
+   
+   ```
 
-    ```
-    source venv/bin/activate
+3. **Install dependencies:**
 
-    ```
+   ```
+   pip install -r requirements.txt
+   
+   ```
 
-3.  **Install dependencies:**
+4. **Prepare the models:** Run the training scripts to generate and save your model files.
 
-    ```
-    pip install -r requirements.txt
-
-    ```
-
-4.  **Prepare the model:** Run the training script to generate and save your `generator_model.pth` file.
-
-    ```
-    python prepare_model.py
-
-    ```
+   ```
+   python prepare_model.py
+   python prepare_classifier.py
+   
+   ```
 
 ## Running the Application
 
@@ -96,4 +100,4 @@ A GitHub Actions pipeline is configured to run tests on the FastAPI application 
 
 * Run tests on the FastAPI endpoints.
 
-This continuous integration process ensures that your application is always ready for deployment
+This continuous integration process ensures that your application is always ready for deployment.
