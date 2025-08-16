@@ -10,6 +10,7 @@ import os
 import io
 from PIL import Image
 import base64
+import yaml # New: Import for reading config
 
 # --- 1. Model Architectures ---
 class Generator(nn.Module):
@@ -36,7 +37,6 @@ class Generator(nn.Module):
         img = img_flat.view(img_flat.size(0), *self.img_shape)
         return img
 
-# New: Classifier model architecture
 class Classifier(nn.Module):
     def __init__(self):
         super(Classifier, self).__init__()
@@ -57,17 +57,25 @@ class Classifier(nn.Module):
 app = FastAPI(title="MNIST GAN Generator")
 templates = Jinja2Templates(directory="app/templates")
 
-# Global variables for the models
+# Global variables for the models and config
 generator = None
 classifier = None
 latent_dim = 100
 img_shape = (1, 28, 28)
 device = "cuda" if torch.cuda.is_available() else "cpu"
+# New: Global variable for num predictions
+NUM_PREDICTIONS = 3
 
-# Function to load the models
+# Function to load the models and config
 def load_models():
     global generator
     global classifier
+    global NUM_PREDICTIONS
+
+    # New: Load the configuration file
+    with open('configs/config.yaml', 'r') as f:
+        config = yaml.safe_load(f)
+    NUM_PREDICTIONS = config.get('num_predictions_to_show', 3)
     
     # Load Generator model
     gen_model_path = "model/generator_model.pth"
@@ -108,36 +116,33 @@ async def generate_image():
         generated_img_tensor = generator(z).detach().cpu()
         
         # Classify the generated image with the classifier
-        # The Classifier needs a (1, 1, 28, 28) input
         classifier_input = generated_img_tensor.to(device)
         output = classifier(classifier_input)
         
-        # Get the prediction and confidence score
+        # New: Get the top-k predictions
         probabilities = F.softmax(output, dim=1)
-        confidence, predicted_number = torch.max(probabilities, 1)
+        top_k_probs, top_k_preds = torch.topk(probabilities, NUM_PREDICTIONS, dim=1)
+        
+        predictions_list = []
+        for i in range(NUM_PREDICTIONS):
+            predictions_list.append({
+                "prediction": top_k_preds[0][i].item(),
+                "confidence": f"{top_k_probs[0][i].item() * 100:.2f}%"
+            })
         
         # Convert image tensor to Base64 string for the UI
-        # Corrected: Convert to numpy and then to uint8
         img_array = (generated_img_tensor[0] * 0.5 + 0.5) * 255
         img_array = img_array.to(torch.uint8).numpy()
-        
-        # Reshape the image array to a 28x28 grayscale image
         img_array = img_array.reshape(28, 28)
+        img = Image.fromarray(img_array, 'L')
         
-        # Create a PIL Image object from the numpy array
-        img = Image.fromarray(img_array, 'L')  # 'L' mode for grayscale
-        
-        # Save the image to an in-memory buffer
         buffer = io.BytesIO()
         img.save(buffer, format="PNG")
-        
-        # Encode the image data to a Base64 string
         img_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
         
     return {
         "image": f"data:image/png;base64,{img_base64}",
-        "prediction": predicted_number.item(),
-        "confidence": f"{confidence.item() * 100:.2f}%"
+        "predictions": predictions_list # New: Return the list of top predictions
     }
 
 if __name__ == "__main__":

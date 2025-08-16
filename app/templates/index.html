@@ -10,17 +10,19 @@
         body { font-family: 'Inter', sans-serif; }
     </style>
 </head>
-<body class="bg-gray-900 text-white flex items-center justify-center min-h-screen">
+<body class="bg-gray-500 text-white flex items-center justify-center min-h-screen">
     <div class="bg-gray-800 p-8 rounded-lg shadow-xl max-w-md w-full text-center space-y-6">
         <h1 class="text-3xl font-bold text-indigo-400">MNIST GAN Generator</h1>
         <p class="text-gray-400">Click the button to generate a new handwritten digit.</p>
         
         <div class="relative w-full h-auto p-4 bg-gray-700 rounded-lg flex flex-col items-center justify-center min-h-[200px]">
             <img id="generatedImage" class="w-48 h-48 object-contain rounded-lg" src="https://placehold.co/150x150/374151/E5E7EB?text=Placeholder" alt="Generated MNIST Digit">
-            <div class="mt-4 text-left">
-                <p id="predictionText" class="text-lg font-semibold"></p>
-                <p id="confidenceText" class="text-sm text-gray-400"></p>
+            
+            <div id="predictionsContainer" class="mt-4 text-left space-y-2 w-full">
+                <h6 class="font-semibold text-lg text-white">Top Predictions:</h6>
+                <ul id="predictionsList" class="list-none m-0 p-0"></ul>
             </div>
+            
             <div id="loadingIndicator" class="absolute inset-0 flex items-center justify-center bg-gray-700 bg-opacity-75 z-10 hidden">
                 <i class="fas fa-spinner fa-spin text-indigo-400 text-4xl"></i>
             </div>
@@ -35,14 +37,12 @@
         const generateButton = document.getElementById('generateButton');
         const generatedImage = document.getElementById('generatedImage');
         const loadingIndicator = document.getElementById('loadingIndicator');
-        const predictionText = document.getElementById('predictionText');
-        const confidenceText = document.getElementById('confidenceText');
+        const predictionsList = document.getElementById('predictionsList');
 
         const generateImage = async () => {
             generateButton.disabled = true;
             loadingIndicator.classList.remove('hidden');
-            predictionText.textContent = '';
-            confidenceText.textContent = '';
+            predictionsList.innerHTML = '';
 
             try {
                 const response = await fetch('/generate_image');
@@ -50,19 +50,30 @@
 
                 if (data.image) {
                     generatedImage.src = data.image;
-                    predictionText.textContent = `Predicted Number: ${data.prediction}`;
-                    confidenceText.textContent = `Confidence: ${data.confidence}`;
+                    // New: Display the list of predictions
+                    if (data.predictions && data.predictions.length > 0) {
+                        data.predictions.forEach(p => {
+                            const listItem = document.createElement('li');
+                            listItem.className = 'text-sm text-gray-400';
+                            listItem.textContent = `Prediction: ${p.prediction} | Confidence: ${p.confidence}`;
+                            predictionsList.appendChild(listItem);
+                        });
+                    }
                 } else {
                     console.error('Error from API:', data.error);
                     generatedImage.src = 'https://placehold.co/150x150/FF0000/FFFFFF?text=Error';
-                    predictionText.textContent = 'Error';
-                    confidenceText.textContent = '';
+                    const listItem = document.createElement('li');
+                    listItem.className = 'text-sm text-red-400';
+                    listItem.textContent = 'Error loading image.';
+                    predictionsList.appendChild(listItem);
                 }
             } catch (error) {
                 console.error('Failed to fetch image:', error);
                 generatedImage.src = 'https://placehold.co/150x150/FF0000/FFFFFF?text=Error';
-                predictionText.textContent = 'Error';
-                confidenceText.textContent = '';
+                const listItem = document.createElement('li');
+                listItem.className = 'text-sm text-red-400';
+                listItem.textContent = 'Network error.';
+                predictionsList.appendChild(listItem);
             } finally {
                 generateButton.disabled = false;
                 loadingIndicator.classList.add('hidden');
