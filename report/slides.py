@@ -97,7 +97,7 @@ slide_layout = prs.slide_layouts[5]
 slide = prs.slides.add_slide(slide_layout)
 title = slide.shapes.title
 title.text = "Real-time Image Generation with Prediction"
-slide.shapes.add_picture("./application.PNG", Inches(1), Inches(2), width=Inches(5), height=Inches(4))
+slide.shapes.add_picture("./applicationCapture.PNG", Inches(1), Inches(2), width=Inches(5), height=Inches(4))
 
 # Bullet points
 textbox = slide.shapes.add_textbox(Inches(6.5), Inches(2), Inches(3), Inches(4))
