@@ -1,0 +1,5 @@
+latent_dim: 100
+img_shape: [1, 28, 28]
+lr: 0.0002
+epochs: 20
+batch_size: 64

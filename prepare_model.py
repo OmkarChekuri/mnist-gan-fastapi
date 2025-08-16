@@ -1,10 +1,17 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import DataLoader
+from torchvision import datasets, transforms
 import os
 import logging
 import time
+import matplotlib.pyplot as plt
+import numpy as np
+import yaml
+import imageio
+import torchvision.utils as vutils
+from PIL import Image, ImageDraw, ImageFont
 
 # --- 1. Logging Setup ---
 def setup_logging(log_file):
@@ -27,8 +34,21 @@ def setup_logging(log_file):
 
     return logger
 
-# --- 2. Model Architecture ---
-# This is a simple Generator from the GAN notebook.
+# --- 2. Configuration Parameters ---
+class GANConfig:
+    def __init__(self, config_path):
+        with open(config_path, 'r') as f:
+            config = yaml.safe_load(f)
+        
+        self.latent_dim = config['latent_dim']
+        self.img_shape = tuple(config['img_shape'])
+        self.lr = config['lr']
+        self.epochs = config['epochs']
+        self.batch_size = config['batch_size']
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+
+# --- 3. Model Architecture ---
 class Generator(nn.Module):
     def __init__(self, latent_dim, img_shape):
         super().__init__()
@@ -55,76 +75,170 @@ class Generator(nn.Module):
         img_flat = self.model(z)
         img = img_flat.view(img_flat.size(0), *self.img_shape)
         return img
+    
+class Discriminator(nn.Module):
+    def __init__(self, img_shape):
+        super().__init__()
+        self.model = nn.Sequential(
+            nn.Linear(int(torch.prod(torch.tensor(img_shape))), 512),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Linear(512, 256),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Linear(256, 1),
+            nn.Sigmoid(),
+        )
 
-# --- 3. Training Script for Generator ---
-def train_and_save_generator(output_path, logger, num_samples=1000):
+    def forward(self, img):
+        img_flat = img.view(img.size(0), -1)
+        validity = self.model(img_flat)
+        return validity
+
+# --- 4. Training Script for Generator ---
+def train_and_save_generator(output_path, logger, config, run_timestamp):
     """
-    Trains a small GAN Generator on dummy data and saves the model state.
+    Trains a GAN Generator on the real MNIST dataset and saves the model state.
     """
     logger.info("--- Starting Model Training and Export ---")
     
-    # Configuration
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    latent_dim = 100
-    img_shape = (1, 28, 28)
-    lr = 0.0002
-    epochs = 10
-    batch_size = 64
+    device = config.device
+    latent_dim = config.latent_dim
+    img_shape = config.img_shape
+    lr = config.lr
+    epochs = config.epochs
+    batch_size = config.batch_size
     
-    # Define the target size for the loss calculation
-    image_size_flat = img_shape[0] * img_shape[1] * img_shape[2]
+    os.makedirs('data/mnist', exist_ok=True)
+    transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize([0.5], [0.5])
+    ])
+    mnist_dataset = datasets.MNIST(root='data/mnist', train=True, download=True, transform=transform)
+    dataloader = DataLoader(mnist_dataset, batch_size=batch_size)
 
-    # Create dummy data for a quick training run
-    dummy_noise = torch.randn(num_samples, latent_dim)
-    dummy_dataset = TensorDataset(dummy_noise)
-    dataloader = DataLoader(dummy_dataset, batch_size=batch_size)
-
-    # Initialize Generator and Optimizer
     generator = Generator(latent_dim, img_shape).to(device)
+    discriminator = Discriminator(img_shape).to(device)
     optimizer_g = optim.Adam(generator.parameters(), lr=lr, betas=(0.5, 0.999))
+    optimizer_d = optim.Adam(discriminator.parameters(), lr=lr, betas=(0.5, 0.999))
     criterion = nn.BCELoss()
 
-    # Dummy Training Loop
     generator.train()
-    epoch_metrics = []
+    discriminator.train()
+    
+    g_losses_per_epoch = []
+    d_losses_per_epoch = []
+    frames = []
+    
+    fixed_noise = torch.randn(64, latent_dim, device=device)
+
     for epoch in range(epochs):
-        for i, noise in enumerate(dataloader):
-            noise = noise[0].to(device)
-            # Corrected: Use a flattened target tensor with the correct size
-            valid = torch.ones(noise.size(0), image_size_flat).to(device)
+        g_loss_for_epoch = 0.0
+        d_loss_for_epoch = 0.0
+        for i, (imgs, _) in enumerate(dataloader):
             
+            # --- Train Discriminator ---
+            optimizer_d.zero_grad()
+            real_imgs = imgs.to(device)
+            real_validity = discriminator(real_imgs)
+            real_loss = criterion(real_validity, torch.ones(imgs.size(0), 1).to(device))
+
+            z = torch.randn(imgs.size(0), latent_dim, device=device)
+            fake_imgs = generator(z).detach()
+            fake_validity = discriminator(fake_imgs)
+            fake_loss = criterion(fake_validity, torch.zeros(imgs.size(0), 1).to(device))
+
+            d_loss = (real_loss + fake_loss) / 2
+            d_loss.backward()
+            optimizer_d.step()
+            
+            # --- Train Generator ---
             optimizer_g.zero_grad()
-            gen_imgs = generator(noise)
-            
-            # Corrected: Flatten the generator output to match the target size
-            g_loss = criterion(torch.sigmoid(gen_imgs).view(gen_imgs.size(0), -1), valid)
+            z = torch.randn(imgs.size(0), latent_dim, device=device)
+            gen_imgs = generator(z)
+            g_loss = criterion(discriminator(gen_imgs), torch.ones(imgs.size(0), 1).to(device))
             
             g_loss.backward()
             optimizer_g.step()
 
-        logger.info(f"Epoch {epoch+1}/{epochs}, Generator Loss: {g_loss.item():.4f}")
-        epoch_metrics.append({'epoch': epoch + 1, 'loss': g_loss.item()})
+            if i % 100 == 0:
+                logger.info(f"Epoch: {epoch+1}/{epochs}, Batch: {i}/{len(dataloader)} | D Loss: {d_loss.item():.4f} | G Loss: {g_loss.item():.4f}")
+            
+            g_loss_for_epoch += g_loss.item()
+            d_loss_for_epoch += d_loss.item()
+        
+        avg_g_loss = g_loss_for_epoch / len(dataloader)
+        avg_d_loss = d_loss_for_epoch / len(dataloader)
 
-    # Ensure output directory exists
+        logger.info(f"Epoch {epoch+1}/{epochs} | D Loss (Avg): {avg_d_loss:.4f} | G Loss (Avg): {avg_g_loss:.4f}")
+        g_losses_per_epoch.append(avg_g_loss)
+        d_losses_per_epoch.append(avg_d_loss)
+
+        with torch.no_grad():
+            generator.eval()
+            gen_imgs = generator(fixed_noise).detach().cpu()
+
+            grid_img_tensor = vutils.make_grid(gen_imgs * 0.5 + 0.5, padding=2, normalize=True)
+            grid_img_np = grid_img_tensor.permute(1, 2, 0).numpy()
+            grid_img_pil = Image.fromarray((grid_img_np * 255.0).astype(np.uint8))
+            
+            draw = ImageDraw.Draw(grid_img_pil)
+            font_size = 20
+            try:
+                font = ImageFont.truetype("arial.ttf", font_size)
+            except IOError:
+                font = ImageFont.load_default()
+            
+            text = f"Epoch: {epoch+1}"
+            draw.text((10, 10), text, font=font, fill=(255, 255, 255))
+            
+            frames.append(np.array(grid_img_pil))
+            generator.train()
+
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    
-    # Save the trained model
     torch.save(generator.state_dict(), output_path)
     logger.info(f"\nGenerator model successfully saved to {output_path}")
+
+    # --- Plotting Training Metrics ---
+    def visualize_training(g_losses, d_losses, save_path):
+        """Generates and saves a plot of Generator and Discriminator losses."""
+        epochs = np.arange(1, len(g_losses) + 1)
+        
+        plt.figure(figsize=(10, 6))
+        plt.title("Generator and Discriminator Loss During Training")
+        plt.plot(epochs, g_losses, label="Generator Loss")
+        plt.plot(epochs, d_losses, label="Discriminator Loss")
+        plt.xlabel("Epochs")
+        plt.ylabel("Loss")
+        plt.legend()
+        plt.grid(True)
+        
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        plt.savefig(save_path)
+        logger.info(f"Loss plot saved to {save_path}")
+
+    plot_save_path = os.path.join('logs', f'gan_training_losses_{run_timestamp}.png')
+    visualize_training(g_losses_per_epoch, d_losses_per_epoch, plot_save_path)
+    
+    # --- Generate GIF with Timestamp in filename ---
+    gif_path = os.path.join('logs', f'gan_training_progress_{run_timestamp}.gif')
+    logger.info("Creating GIF of generated samples over epochs...")
+    imageio.mimsave(gif_path, frames, fps=1)
+    logger.info(f"GIF created: {gif_path}")
+
     logger.info(f"--- Epoch Metrics Log ---")
-    logger.info(str(epoch_metrics))
+    logger.info(f"Generator Losses: {g_losses_per_epoch}")
+    logger.info(f"Discriminator Losses: {d_losses_per_epoch}")
     logger.info("--- Model Export Complete ---")
 
 
 if __name__ == '__main__':
-    # Define the path to save the model and the log file
     model_save_path = os.path.join('model', 'generator_model.pth')
-    log_file_name = f"gan_training_log_{int(time.time())}.log"
     
-    # Setup logging
     if not os.path.exists('logs'):
         os.makedirs('logs')
+    run_timestamp = time.strftime("%Y-%m-%d_%H-%M-%S", time.gmtime())
+    log_file_name = f"gan_training_log_{run_timestamp}.log"
     logger = setup_logging(os.path.join('logs', log_file_name))
+
+    config = GANConfig('configs/config.yaml')
     
-    # Train and save the model
-    train_and_save_generator(model_save_path, logger)
+    train_and_save_generator(model_save_path, logger, config, run_timestamp)
