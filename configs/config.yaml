@@ -3,3 +3,4 @@ img_shape: [1, 28, 28]
 lr: 0.0002
 epochs: 20
 batch_size: 64
+num_predictions_to_show: 3 
