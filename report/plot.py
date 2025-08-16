@@ -1,0 +1,23 @@
+import matplotlib.pyplot as plt
+import numpy as np
+import json
+
+# Data extracted from your provided logs
+g_losses_str = "[0.8547711443227491, 0.9366002984519707, 0.9809877779692221, 1.028972950190115, 0.9621060712695885, 0.9373731607757906, 0.9354666158525166, 0.9194455803520898, 0.9101737885714085, 0.8998334066890704, 0.8847102800539053, 0.882334085987575, 0.8772036104059932, 0.8781337272574399, 0.8687292881039922, 0.868195465887025, 0.8729581203160763, 0.8681320279264755, 0.8674189297756406, 0.8635128218609133]"
+d_losses_str = "[0.6469696177475488, 0.6336105929445356, 0.6164920027258554, 0.6029787260268543, 0.6169381328165404, 0.6251830791613695, 0.6256572470736148, 0.631901282936271, 0.6331600889341155, 0.6365701671221109, 0.6432711013090382, 0.6435819352740673, 0.644482314840817, 0.6430365392394157, 0.6458770926954396, 0.645183054305343, 0.644880214416142, 0.6452496558872621, 0.6461725732537983, 0.6470403444411149]"
+
+g_losses = json.loads(g_losses_str)
+d_losses = json.loads(d_losses_str)
+epochs = np.arange(1, len(g_losses) + 1)
+
+# Create the plot
+plt.figure(figsize=(10, 6))
+plt.title("Generator and Discriminator Loss During Training", fontsize=16)
+plt.plot(epochs, g_losses, label="Generator Loss", marker='o', linestyle='-', color='#1f77b4')
+plt.plot(epochs, d_losses, label="Discriminator Loss", marker='o', linestyle='-', color='#ff7f0e')
+plt.xlabel("Epochs", fontsize=12)
+plt.ylabel("Loss", fontsize=12)
+plt.legend(fontsize=10)
+plt.grid(True, linestyle='--', alpha=0.6)
+plt.xticks(epochs)
+plt.show()
