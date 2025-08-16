@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MNIST GAN Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-900 text-white flex items-center justify-center min-h-screen">
+    <div class="bg-gray-800 p-8 rounded-lg shadow-xl max-w-md w-full text-center space-y-6">
+        <h1 class="text-3xl font-bold text-indigo-400">MNIST GAN Generator</h1>
+        <p class="text-gray-400">Click the button to generate a new handwritten digit.</p>
+        
+        <div class="relative w-full h-auto p-4 bg-gray-700 rounded-lg flex items-center justify-center min-h-[200px]">
+            <img id="generatedImage" class="w-48 h-48 object-contain rounded-lg" src="https://placehold.co/150x150/374151/E5E7EB?text=Placeholder" alt="Generated MNIST Digit">
+            <div id="loadingIndicator" class="absolute inset-0 flex items-center justify-center bg-gray-700 bg-opacity-75 z-10 hidden">
+                <i class="fas fa-spinner fa-spin text-indigo-400 text-4xl"></i>
+            </div>
+        </div>
+
+        <button id="generateButton" class="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition-colors duration-300 shadow-md">
+            Generate New Digit
+        </button>
+    </div>
+
+    <script>
+        const generateButton = document.getElementById('generateButton');
+        const generatedImage = document.getElementById('generatedImage');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+
+        const generateImage = async () => {
+            generateButton.disabled = true;
+            loadingIndicator.classList.remove('hidden');
+
+            try {
+                const response = await fetch('/generate_image');
+                const data = await response.json();
+
+                if (data.image) {
+                    generatedImage.src = data.image;
+                } else {
+                    console.error('Error from API:', data.error);
+                    generatedImage.src = 'https://placehold.co/150x150/FF0000/FFFFFF?text=Error';
+                }
+            } catch (error) {
+                console.error('Failed to fetch image:', error);
+                generatedImage.src = 'https://placehold.co/150x150/FF0000/FFFFFF?text=Error';
+            } finally {
+                generateButton.disabled = false;
+                loadingIndicator.classList.add('hidden');
+            }
+        };
+
+        generateButton.addEventListener('click', generateImage);
+        
+        // Generate an initial image on page load
+        document.addEventListener('DOMContentLoaded', generateImage);
+
+    </script>
+</body>
+</html>

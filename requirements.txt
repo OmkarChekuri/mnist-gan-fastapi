@@ -1,0 +1,10 @@
+fastapi==0.116.1
+imageio==2.37.0
+matplotlib==3.10.5
+numpy==2.3.2
+Pillow==11.3.0
+PyYAML==6.0.2
+PyYAML==6.0.2
+torch==2.7.1+cu126
+torchvision==0.22.1+cu126
+uvicorn==0.35.0
