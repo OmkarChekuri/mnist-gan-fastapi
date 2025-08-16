@@ -4,7 +4,7 @@ This project implements a Generative Adversarial Network (GAN) to generate handw
 
 ## Project Overview
 
-![GAN Application Screenshot](uploaded:application.PNG)
+![GAN Application Screenshot](application.PNG)
 
 The core of this project consists of:
 
